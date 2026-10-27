@@ -35,3 +35,8 @@
 # Fix xray-core Go version requirement
 # sed -i 's/GOTOOLCHAIN=local/GOTOOLCHAIN=auto/' feeds/packages/net/xray-core/Makefile
  
+# Fix xray-core build failure (run #29): xray v26.10.21 的 go.mod 要求 go 1.27,
+# 而 feeds/packages 的默认 Go (GO_DEFAULT_VERSION) 是 1.26, xray 编译报错退出.
+# 将 xray 的构建依赖从 golang/host (=默认 1.26) 改指到 feed 自带的 golang1.27 (Go 1.27.1).
+# 若上游日后自行修复 (BUILD_DEPENDS 不再是 golang/host), 本 sed 自动变为无害空操作.
+sed -i 's|^PKG_BUILD_DEPENDS:=golang/host$|PKG_BUILD_DEPENDS:=golang1.27/host|' feeds/passwall_packages/xray-core/Makefile

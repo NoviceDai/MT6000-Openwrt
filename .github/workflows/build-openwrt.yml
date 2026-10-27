@@ -238,8 +238,20 @@ jobs:
         [ "${{ github.event.inputs.verbose }}" = "true" ] && VERBOSE="V=s"
         echo -e "MyMark ... $(nproc) thread compile..."
         set -o pipefail
-        make -j$(nproc) $VERBOSE 2>&1 | tee $BUILD_LOG
-        echo "status=success" >> $GITHUB_OUTPUT
+        if make -j$(nproc) $VERBOSE 2>&1 | tee $BUILD_LOG; then
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          failed_pkg=$(grep -oE 'ERROR: package/[^ ]+ failed to build' $BUILD_LOG | head -1 | sed -e 's|^ERROR: package/||' -e 's| failed to build$||')
+          if [ -n "$failed_pkg" ]; then
+            echo "::warning::编译失败于 $failed_pkg，用 V=s 单线程重跑该包获取详细错误"
+            make "package/$failed_pkg/clean" "package/$failed_pkg/compile" V=s -j1 2>&1 | tee -a $BUILD_LOG || true
+          else
+            echo "::warning::编译失败且未定位到具体包，用 V=s 单线程全量重跑"
+            make -j1 V=s 2>&1 | tee -a $BUILD_LOG || true
+          fi
+          echo "status=failed" >> $GITHUB_OUTPUT
+          exit 1
+        fi
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
     - name: Get device name
@@ -369,7 +381,9 @@ jobs:
             r"(make(\[\d+\])?: \*\*\*|^ERROR:|error:|Error \d+\s*$|Collected errors|"
             r"missing dependenc|No space left|Killed|fatal error|undefined reference|"
             r"No rule to make target|checksum mismatch|Segmentation fault|"
-            r"Cannot allocate memory|No such file or directory)", re.I)
+            r"Cannot allocate memory|No such file or directory|"
+            r"requires [Gg]o >=|go: download|go: error|go\.mod requires|"
+            r"note: module requires Go)", re.I)
         if os.path.exists(log):
             with open(log, errors="ignore") as f:
                 for line in f:
