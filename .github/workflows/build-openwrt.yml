@@ -173,6 +173,39 @@ jobs:
           exit 1
         fi
 
+    # 心跳：过校验后先写一条 running 状态，便于外部区分"在编译"和"没触发"
+    - name: Report heartbeat
+      if: steps.verify.outcome == 'success' && !cancelled()
+      continue-on-error: true
+      run: |
+        python3 - <<'PY'
+        import json, os, datetime
+        env = os.environ
+        s = {
+            "conclusion": "running",
+            "stage": "已通过配置校验，开始下载/编译",
+            "sha": env.get("GITHUB_SHA"),
+            "run_id": env.get("GITHUB_RUN_ID"),
+            "run_number": env.get("GITHUB_RUN_NUMBER"),
+            "run_url": "https://github.com/%s/actions/runs/%s" % (env.get("GITHUB_REPOSITORY"), env.get("GITHUB_RUN_ID")),
+            "version": env.get("REPO_BRANCH"),
+            "dry_run": env.get("DRY_RUN") == "true",
+            "config_checked": env.get("CONFIG_CHECKED"),
+            "heartbeat_at": datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat(),
+        }
+        with open(os.path.join(env["GITHUB_WORKSPACE"], "status.json"), "w") as f:
+            json.dump(s, f, ensure_ascii=False, indent=2)
+        print(json.dumps(s, ensure_ascii=False))
+        PY
+        cd $GITHUB_WORKSPACE
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git checkout -B build-status
+        git rm -r --cached . -q >/dev/null 2>&1 || true
+        git add -f status.json
+        git commit -q -m "running ${GITHUB_RUN_NUMBER}"
+        git push -f -q origin build-status && echo "心跳已写入 build-status"
+
     - name: Download package
       id: package
       run: |
@@ -300,6 +333,7 @@ jobs:
     # ------------------------------------------------------------------
     - name: Publish build status
       if: always()
+      continue-on-error: true
       env:
         OUTCOMES: "checkout=${{ steps.checkout.outcome }};environment=${{ steps.environment.outcome }};golang=${{ steps.golang.outcome }};source=${{ steps.source.outcome }};feeds1=${{ steps.feeds1.outcome }};feeds2=${{ steps.feeds2.outcome }};feeds3=${{ steps.feeds3.outcome }};feeds4=${{ steps.feeds4.outcome }};config=${{ steps.config.outcome }};prepare=${{ steps.prepare.outcome }};verify=${{ steps.verify.outcome }};package=${{ steps.package.outcome }};compile=${{ steps.compile.outcome }};organize=${{ steps.organize.outcome }};release=${{ steps.release.outcome }}"
         RELEASE_TAG: ${{ steps.tag.outputs.release_tag }}
