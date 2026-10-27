@@ -10,6 +10,10 @@
 # Description: OpenWrt DIY script part 1 (Before Update feeds)
 #
 
+
+# backup feeds.conf.default
+cp feeds.conf.default feeds.conf.default.bak
+
 # Uncomment a feed source
 #sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
 
