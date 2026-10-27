@@ -1,0 +1,2 @@
+# 改用 seed.config 增量配置；完整 .config 不再入库（需要时从历史取）
+/.config
