@@ -1,12 +1,60 @@
 {
-  "conclusion": "running",
-  "stage": "已通过配置校验，开始下载/编译",
+  "conclusion": "success",
+  "failed_step": null,
+  "outcomes": {
+    "checkout": "success",
+    "environment": "success",
+    "source": "success",
+    "feeds1": "success",
+    "feeds2": "success",
+    "feeds3": "success",
+    "feeds4": "success",
+    "config": "success",
+    "prepare": "success",
+    "verify": "success",
+    "package": "success",
+    "compile": "success",
+    "organize": "success",
+    "release": "success"
+  },
+  "dry_run": false,
   "sha": "39ab8bcc0f6ea1849a6cdd2e61a83ea7a04d565a",
   "run_id": "40650921656",
   "run_number": "39",
   "run_url": "https://github.com/NoviceDai/MT6000-Openwrt/actions/runs/40650921656",
   "version": "v25.12.6",
-  "dry_run": false,
+  "device": "glinet_gl-mt6000",
+  "duration_sec": 6091,
+  "release_tag": "2026.10.28-1714",
   "config_checked": "311",
-  "heartbeat_at": "2026-10-28T15:41:58.815613+08:00"
+  "config_missing": [],
+  "firmware": [
+    {
+      "name": "openwrt-mediatek-filogic-glinet_gl-mt6000-squashfs-factory.bin",
+      "size": 99669873
+    },
+    {
+      "name": "openwrt-mediatek-filogic-glinet_gl-mt6000-squashfs-sysupgrade.bin",
+      "size": 70635840
+    },
+    {
+      "name": "openwrt-mediatek-filogic-glinet_gl-mt6000-bl31-uboot.fip",
+      "size": 738548
+    },
+    {
+      "name": "openwrt-mediatek-filogic-glinet_gl-mt6000.manifest",
+      "size": 11219
+    },
+    {
+      "name": "openwrt-mediatek-filogic-glinet_gl-mt6000-preloader.bin",
+      "size": 205204
+    },
+    {
+      "name": "openwrt-mediatek-filogic-glinet_gl-mt6000-initramfs-kernel.bin",
+      "size": 56553900
+    }
+  ],
+  "errors": [],
+  "log_tail": [],
+  "finished_at": "2026-10-28T17:15:49.084303+08:00"
 }
