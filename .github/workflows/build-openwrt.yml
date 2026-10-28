@@ -1,10 +1,11 @@
 #############################################################################################
 ##  MT6000 OpenWrt 编译流水线
-##  v3.4 2026/10/28
-##  变更：① 缓存 openwrt/dl 下载目录（actions/cache 滚动复用，缩短 Download 步骤、
-##          降低网络失败率）；② 将 Mattraks/delete-workflow-runs 由浮动 @main 固定到
-##          发布标签 v2.1.0（供应链安全）。
-##  历史：v3.3 删除无用的 Install Go 1.25 / docker prune / make depend；
+##  v3.5 2026/10/28
+##  变更：① 修复 Verify config 误判：defconfig 后普通包可能落到 =m（如 nfs-kernel-server），
+##          而 =m 仍会编进固件，故校验接受 =y 或 =m；② 新增 Fix luci-app-nfs luci.mk 步骤：
+##          第三方 luci-app-nfs 仓库把包藏在 source/ 下且根无 luci.mk，其 Makefile 的
+##          include ../../luci.mk 解析不到，建符号链接指向官方 luci feed 的 luci.mk 修正。
+##  历史：v3.4 缓存 dl/ + pin 第三方 action v2.1.0；v3.3 删除无用 Go/docker/depend；
 ##        v3.2 配置校验 / 下载重试 / 状态回写 build-status；v3.1 seed.config 增量配置。
 #############################################################################################
 
@@ -95,6 +96,20 @@ jobs:
       id: feeds2
       run: cd openwrt && ./scripts/feeds update -a
 
+    - name: Fix luci-app-nfs luci.mk (第三方 feed 结构修正)
+      id: feeds_nfsfix
+      run: |
+        cd openwrt
+        # 第三方 luci-app-nfs 仓库把包藏在 source/ 下且根目录无 luci.mk，
+        # 其 Makefile 的 `include ../../luci.mk` 会解析到 feeds/luciappnfs/luci.mk（不存在），
+        # 导致该包 Makefile 无法解析、不进索引。给它建一个指向官方 luci feed 的 luci.mk 符号链接。
+        if [ -d feeds/luciappnfs ]; then
+          ln -sf ../luci/luci.mk feeds/luciappnfs/luci.mk
+          echo "::notice::已为 luciappnfs feed 链接 luci.mk -> ../luci/luci.mk"
+        else
+          echo "::warning::feeds/luciappnfs 不存在，跳过 luci.mk 修正（可能未启用该第三方源）"
+        fi
+
     - name: Change default package
       id: feeds3
       run: |
@@ -143,7 +158,9 @@ jobs:
         while IFS= read -r line; do
           sym="${line%%=*}"
           total=$((total+1))
-          if ! grep -qxF "${sym}=y" .config; then
+          # 接受 =y 或 =m：OpenWrt 普通软件包 defconfig 后可能落到 =m（如 nfs-kernel-server），
+          # 而 =m 仍会被 IPKGS 编进固件（仅 kmod 才有 in/builtin 区别），故 =y/=m 均视为已生效。
+          if ! grep -qxE "${sym}=(y|m)" .config; then
             miss=$((miss+1)); miss_list="$miss_list ${sym}"
             echo "::error title=配置未生效::${sym} 在 make defconfig 后被关闭（包名错误或依赖不满足）"
           fi
