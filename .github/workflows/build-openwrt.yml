@@ -1,10 +1,11 @@
 #############################################################################################
 ##  MT6000 OpenWrt 编译流水线
-##  v3.3 2026/10/28
-##  变更：删除无用的 "Install Go 1.25" 步骤（OpenWrt 用自带 golang-bootstrap 自举，
-##        不依赖系统 go）；删除多余的 docker image prune 与失效的 make depend；
-##        清理编译步里指向系统 go 的 PATH/GOTOOLCHAIN 注入。
-##  历史：v3.2 配置校验 / 下载重试 / 状态回写 build-status；v3.1 seed.config 增量配置。
+##  v3.4 2026/10/28
+##  变更：① 缓存 openwrt/dl 下载目录（actions/cache 滚动复用，缩短 Download 步骤、
+##          降低网络失败率）；② 将 Mattraks/delete-workflow-runs 由浮动 @main 固定到
+##          发布标签 v2.1.0（供应链安全）。
+##  历史：v3.3 删除无用的 Install Go 1.25 / docker prune / make depend；
+##        v3.2 配置校验 / 下载重试 / 状态回写 build-status；v3.1 seed.config 增量配置。
 #############################################################################################
 
 name: Build OpenWrt
@@ -197,6 +198,16 @@ jobs:
         git commit -q -m "running ${GITHUB_RUN_NUMBER}"
         git push -f -q origin build-status && echo "心跳已写入 build-status"
 
+    - name: Cache download directory (dl)
+      id: cache-dl
+      uses: actions/cache@v4
+      with:
+        path: openwrt/dl
+        # 滚动复用：每次用唯一 key 存档，restore-keys 回退到同版本上一次缓存
+        key: dl-${{ runner.os }}-${{ env.REPO_BRANCH }}-${{ github.run_id }}
+        restore-keys: |
+          dl-${{ runner.os }}-${{ env.REPO_BRANCH }}-
+
     - name: Download package
       id: package
       run: |
@@ -312,7 +323,7 @@ jobs:
 
     - name: Delete workflow runs
       if: steps.compile.outputs.status == 'success'
-      uses: Mattraks/delete-workflow-runs@main
+      uses: Mattraks/delete-workflow-runs@v2.1.0
       with:
         retain_days: 0
         keep_minimum_runs: 4
