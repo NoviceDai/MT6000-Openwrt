@@ -34,3 +34,4 @@ cp feeds.conf.default feeds.conf.default.bak
 sed -i '1i\src-git passwall_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git;main' feeds.conf.default
 sed -i '2i\src-git passwall_luci https://github.com/Openwrt-Passwall/openwrt-passwall.git;main' feeds.conf.default
 #sed -i '2i\src-git passwall_luci https://github.com/Openwrt-Passwall/openwrt-passwall2.git;main' feeds.conf.default
+sed -i '$a src-git luci-app-nfs https://github.com/RPDevs-Builds/luci-app-nfs.git' feeds.conf.default
