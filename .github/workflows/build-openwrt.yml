@@ -1,8 +1,10 @@
 #############################################################################################
 ##  MT6000 OpenWrt 编译流水线
-##  v3.2 2026/10/27
-##  变更：配置校验 / 下载重试 / 手动触发(dry_run,verbose) / 状态回写 build-status 分支
-##        去重 Get device name / 去掉无效的 make depend / 修正 release 清理
+##  v3.3 2026/10/28
+##  变更：删除无用的 "Install Go 1.25" 步骤（OpenWrt 用自带 golang-bootstrap 自举，
+##        不依赖系统 go）；删除多余的 docker image prune 与失效的 make depend；
+##        清理编译步里指向系统 go 的 PATH/GOTOOLCHAIN 注入。
+##  历史：v3.2 配置校验 / 下载重试 / 状态回写 build-status；v3.1 seed.config 增量配置。
 #############################################################################################
 
 name: Build OpenWrt
@@ -64,7 +66,6 @@ jobs:
         DEBIAN_FRONTEND: noninteractive
       run: |
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-        sudo docker image prune --all --force
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential clang flex g++ gawk gcc-multilib gettext git libncurses5-dev libssl-dev python3 python3-pip zlib1g-dev ccache rsync swig unzip file wget libelf-dev python3-distutils bzip2 cmake cpio curl device-tree-compiler fastjar gperf haveged help2man intltool libc6-dev-i386 libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncursesw5-dev libpython3-dev libreadline-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python2.7 python3-pyelftools python3-setuptools qemu-utils scons squashfs-tools subversion texinfo uglifyjs upx-ucl vim xmlto xxd
         sudo -E apt-get -qq autoremove --purge
@@ -72,16 +73,6 @@ jobs:
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
-
-    - name: Install Go 1.25
-      id: golang
-      run: |
-        wget -q https://go.dev/dl/go1.25.0.linux-amd64.tar.gz -O /tmp/go1.25.0.linux-amd64.tar.gz
-        sudo tar -C /usr/local -xzf /tmp/go1.25.0.linux-amd64.tar.gz
-        rm /tmp/go1.25.0.linux-amd64.tar.gz
-        echo "GOPATH=/usr/local/go/bin" >> $GITHUB_ENV
-        echo "PATH=$PATH:/usr/local/go/bin" >> $GITHUB_ENV
-        /usr/local/go/bin/go version
 
     - name: Clone source code
       id: source
@@ -224,16 +215,12 @@ jobs:
         echo -e "Check downloaded files..."
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
-        # 依赖预检（新版 OpenWrt 里是软性步骤，失败不阻断编译）
-        make depend || echo "::warning::make depend 返回非零，已忽略继续"
 
     - name: Compile the firmware
       id: compile
       if: github.event.inputs.dry_run != 'true'
       run: |
         cd openwrt
-        export PATH=$PATH:/usr/local/go/bin
-        export GOTOOLCHAIN=auto
         VERBOSE=""
         [ "${{ github.event.inputs.verbose }}" = "true" ] && VERBOSE="V=s"
         echo -e "MyMark ... $(nproc) thread compile..."
@@ -347,7 +334,7 @@ jobs:
       if: always()
       continue-on-error: true
       env:
-        OUTCOMES: "checkout=${{ steps.checkout.outcome }};environment=${{ steps.environment.outcome }};golang=${{ steps.golang.outcome }};source=${{ steps.source.outcome }};feeds1=${{ steps.feeds1.outcome }};feeds2=${{ steps.feeds2.outcome }};feeds3=${{ steps.feeds3.outcome }};feeds4=${{ steps.feeds4.outcome }};config=${{ steps.config.outcome }};prepare=${{ steps.prepare.outcome }};verify=${{ steps.verify.outcome }};package=${{ steps.package.outcome }};compile=${{ steps.compile.outcome }};organize=${{ steps.organize.outcome }};release=${{ steps.release.outcome }}"
+        OUTCOMES: "checkout=${{ steps.checkout.outcome }};environment=${{ steps.environment.outcome }};source=${{ steps.source.outcome }};feeds1=${{ steps.feeds1.outcome }};feeds2=${{ steps.feeds2.outcome }};feeds3=${{ steps.feeds3.outcome }};feeds4=${{ steps.feeds4.outcome }};config=${{ steps.config.outcome }};prepare=${{ steps.prepare.outcome }};verify=${{ steps.verify.outcome }};package=${{ steps.package.outcome }};compile=${{ steps.compile.outcome }};organize=${{ steps.organize.outcome }};release=${{ steps.release.outcome }}"
         RELEASE_TAG: ${{ steps.tag.outputs.release_tag }}
         DRY_RUN: ${{ github.event.inputs.dry_run }}
       run: |
@@ -362,7 +349,7 @@ jobs:
                 k, v = pair.split("=", 1)
                 outcomes[k.strip()] = v.strip() or "skipped"
 
-        order = ["checkout", "environment", "golang", "source", "feeds1", "feeds2",
+        order = ["checkout", "environment", "source", "feeds1", "feeds2",
                  "feeds3", "feeds4", "config", "prepare", "verify", "package",
                  "compile", "organize", "release"]
         failed = next((s for s in order if outcomes.get(s) == "failure"), None)
